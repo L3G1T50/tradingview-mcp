@@ -116,6 +116,27 @@ describe('launch() — MSIX WindowsApps handling', { skip: !onWindows }, () => {
   });
 });
 
+describe('launch() — MSIX detection budget', { skip: !onWindows }, () => {
+  // Get-AppxPackage routinely takes 5-12s on a cold appx stack. While this budget
+  // was 5000ms it timed out on real machines; the error was swallowed and every
+  // MSIX install reported "TradingView not found" against three irrelevant paths.
+  it('gives Get-AppxPackage a budget that survives a cold appx stack', async () => {
+    const calls = [];
+    const { deps } = msixDeps({ cdpBindsFor: ['WindowsApps'] });
+    const passthrough = deps.execSync;
+    deps.execSync = (cmd, opts) => { calls.push({ cmd, opts }); return passthrough(cmd, opts); };
+
+    await launch({ _deps: deps });
+
+    const probe = calls.find((c) => c.cmd.includes('Get-AppxPackage'));
+    assert.ok(probe, 'expected launch() to probe Get-AppxPackage on win32');
+    assert.ok(
+      probe.opts && probe.opts.timeout >= 15000,
+      `Get-AppxPackage needs a timeout that tolerates a slow appx stack, got ${probe.opts && probe.opts.timeout}ms`,
+    );
+  });
+});
+
 describe('launch() — classic install path', { skip: !onWindows }, () => {
   it('launches classic LOCALAPPDATA install without MSIX logic', async () => {
     const classicExe = `${process.env.LOCALAPPDATA}\\TradingView\\TradingView.exe`;

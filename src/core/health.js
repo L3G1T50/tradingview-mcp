@@ -318,8 +318,11 @@ export async function launch({ port, kill_existing, _deps } = {}) {
     // MSIX/Windows Store install — InstallLocation is in WindowsApps, which is ACL-restricted
     // for normal `dir` enumeration but readable via Get-AppxPackage without elevation.
     try {
+      // Get-AppxPackage is slow — 5-12s is normal on a cold appx stack, so this
+      // needs a much longer budget than the other execSync calls here. At 5s it
+      // times out on most machines and MSIX installs look like "not found".
       const ps = 'powershell -NoProfile -Command "(Get-AppxPackage -Name \'TradingView.Desktop\' -ErrorAction SilentlyContinue).InstallLocation"';
-      const installDir = deps.execSync(ps, { timeout: 5000 }).toString().trim();
+      const installDir = deps.execSync(ps, { timeout: 30000 }).toString().trim();
       if (installDir) {
         const candidate = `${installDir}\\TradingView.exe`;
         if (deps.existsSync(candidate)) tvPath = candidate;
