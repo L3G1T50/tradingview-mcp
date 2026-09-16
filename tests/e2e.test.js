@@ -1,22 +1,27 @@
 /**
- * Comprehensive E2E tests for all 70 TradingView MCP tools.
+ * E2E tests against a live TradingView Desktop instance.
  * Requires TradingView Desktop running with --remote-debugging-port=9222
  *
  * Run: node --test tests/e2e.test.js
  *
- * Coverage: 70+ tests across 12 tool modules
- * - Health & Connection (4 tools)
- * - Chart Control (8 tools)
- * - Data Access (12 tools)
- * - Pine Script (12 tools)
- * - Drawing (5 tools)
- * - UI Automation (12 tools)
- * - Replay Mode (6 tools)
- * - Alerts (3 tools)
- * - Watchlist (2 tools)
- * - Indicators (2 tools)
- * - Batch (1 tool)
- * - Capture (1 tool)
+ * Test groups (counts intentionally omitted — they drift; the runner reports them):
+ * - Health & Connection
+ * - Chart Control
+ * - Data Access
+ * - Pine Script
+ * - Drawing
+ * - UI Automation
+ * - Replay Mode
+ * - Alerts
+ * - Watchlist
+ * - Indicators
+ * - Batch
+ * - Capture
+ * - Context Size Validation
+ *
+ * Not every registered MCP tool is exercised here: pane_* and tab_* have no
+ * e2e coverage. Offline unit tests for tab_* and ui_* live in
+ * tests/tab.test.js and tests/ui.test.js.
  */
 
 import { describe, it, before, after } from 'node:test';
@@ -67,7 +72,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('TradingView MCP — Full E2E (70 tools)', () => {
+describe('TradingView MCP — E2E', () => {
 
   before(async () => {
     try {

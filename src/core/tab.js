@@ -9,13 +9,24 @@
  * `.tabs-container .tab`, its close button, and `create-new-tab-button`.
  * (Approach from issue #155 and PR #163, verified on Desktop 3.1.0.)
  */
-import CDP from 'chrome-remote-interface';
-import { getClient, reconnectTo, CDP_HOST, CDP_PORT } from '../connection.js';
+import _CDP from 'chrome-remote-interface';
+import { getClient as _getClient, reconnectTo as _reconnectTo, CDP_HOST, CDP_PORT } from '../connection.js';
+
+function _resolve(deps) {
+  return {
+    fetch: deps?.fetch || fetch,
+    CDP: deps?.CDP || _CDP,
+    getClient: deps?.getClient || _getClient,
+    reconnectTo: deps?.reconnectTo || _reconnectTo,
+    sleep: deps?.sleep || (ms => new Promise(r => setTimeout(r, ms))),
+  };
+}
 
 /**
  * List all open chart tabs (CDP page targets).
  */
-export async function list() {
+export async function list({ _deps } = {}) {
+  const { fetch } = _resolve(_deps);
   const resp = await fetch(`http://${CDP_HOST}:${CDP_PORT}/json/list`);
   const targets = await resp.json();
 
@@ -40,7 +51,8 @@ export async function list() {
  * the tab bar. There can be several app/window/index.html targets; the shell
  * is the one whose DOM actually contains `.tabs-container .tab`.
  */
-async function withShell(fn) {
+async function withShell(deps, fn) {
+  const { fetch, CDP } = deps;
   const resp = await fetch(`http://${CDP_HOST}:${CDP_PORT}/json/list`);
   const targets = await resp.json();
   const candidates = targets.filter(t => t.type === 'page' && /\/window\/index\.html/i.test(t.url || ''));
@@ -70,7 +82,8 @@ async function withShell(fn) {
 }
 
 /** Check whether a CDP page target is the visible one. */
-async function isTargetVisible(targetId) {
+async function isTargetVisible(deps, targetId) {
+  const { CDP } = deps;
   let c = null;
   try {
     c = await CDP({ host: CDP_HOST, port: CDP_PORT, target: targetId });
@@ -84,14 +97,16 @@ async function isTargetVisible(targetId) {
 }
 
 /** Find an open new-tab landing page target (shows the layout picker). */
-async function findLandingTarget() {
+async function findLandingTarget(deps) {
+  const { fetch } = deps;
   const resp = await fetch(`http://${CDP_HOST}:${CDP_PORT}/json/list`);
   const targets = await resp.json();
   return targets.find(t => t.type === 'page' && t.title === 'New tab') || null;
 }
 
 /** Run fn with an eval helper attached to a specific target. */
-async function withTarget(targetId, fn) {
+async function withTarget(deps, targetId, fn) {
+  const { CDP } = deps;
   let c = null;
   try {
     c = await CDP({ host: CDP_HOST, port: CDP_PORT, target: targetId });
@@ -111,12 +126,14 @@ async function withTarget(targetId, fn) {
  *   layout: '<name>' -> open the saved layout whose title contains <name>
  * Reuses an already-open landing tab instead of opening another one.
  */
-export async function newTab({ layout, name } = {}) {
-  let landing = await findLandingTarget();
+export async function newTab({ layout, name, _deps } = {}) {
+  const deps = _resolve(_deps);
+  const { fetch, reconnectTo, sleep } = deps;
+  let landing = await findLandingTarget(deps);
   let shellCounts = null;
 
   if (!landing) {
-    shellCounts = await withShell(async (evalIn) => {
+    shellCounts = await withShell(deps, async (evalIn) => {
       const before = await evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
       const clicked = await evalIn(`
         (function() {
@@ -127,15 +144,15 @@ export async function newTab({ layout, name } = {}) {
         })()
       `);
       if (!clicked) throw new Error('New-tab button not found in shell window.');
-      await new Promise(r => setTimeout(r, 1500));
+      await sleep(1500);
       const after = await evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
       return { before, after };
     });
-    landing = await findLandingTarget();
+    landing = await findLandingTarget(deps);
   }
 
   if (!layout) {
-    const state = await list();
+    const state = await list({ _deps });
     return {
       success: shellCounts ? shellCounts.after > shellCounts.before : !!landing,
       action: 'new_tab_opened',
@@ -156,13 +173,13 @@ export async function newTab({ layout, name } = {}) {
 
   const wantNew = String(layout).trim().toLowerCase() === 'new';
   const layoutName = name || 'New layout';
-  const picked = await withTarget(landing.id, async (evalIn) => {
+  const picked = await withTarget(deps, landing.id, async (evalIn) => {
     if (wantNew) {
       // "Create new layout" opens a naming dialog; the Create button stays
       // disabled until the name input is filled (React controlled input, so
       // the native value setter + input event are required).
       await evalIn(`(function(){ var b = document.querySelector('.create-new-layout-button'); if (b) b.click(); })()`);
-      await new Promise(r => setTimeout(r, 700));
+      await sleep(700);
       const filled = await evalIn(`
         (function() {
           // The dialog's name field (not the landing page's Search box).
@@ -179,7 +196,7 @@ export async function newTab({ layout, name } = {}) {
         })()
       `);
       if (filled !== 'filled') throw new Error(`Create-layout dialog did not open as expected (${filled}).`);
-      await new Promise(r => setTimeout(r, 400));
+      await sleep(400);
       const created = await evalIn(`
         (function() {
           var scope = document.querySelector('[class*="dialog"], [role="dialog"]') || document;
@@ -212,7 +229,7 @@ export async function newTab({ layout, name } = {}) {
     if (!foundTitle) {
       // Not in the recents — expand the full layout list and retry.
       await evalIn(`(function(){ var b = document.querySelector('.layout-list-expand-button'); if (b) b.click(); })()`);
-      await new Promise(r => setTimeout(r, 800));
+      await sleep(800);
       foundTitle = await evalIn(clickByTitle);
     }
     return foundTitle;
@@ -225,7 +242,7 @@ export async function newTab({ layout, name } = {}) {
   // Wait for a chart target that wasn't there before the pick.
   let chartTarget = null;
   for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 500));
+    await sleep(500);
     const resp = await fetch(`http://${CDP_HOST}:${CDP_PORT}/json/list`);
     const targets = await resp.json();
     chartTarget = targets.find(x =>
@@ -236,7 +253,7 @@ export async function newTab({ layout, name } = {}) {
   if (!chartTarget) throw new Error(`Picked "${picked}" but no new chart target appeared.`);
 
   // Give the chart a moment to boot, then follow it.
-  await new Promise(r => setTimeout(r, 2000));
+  await sleep(2000);
   await reconnectTo(chartTarget.id);
   return {
     success: true,
@@ -249,13 +266,15 @@ export async function newTab({ layout, name } = {}) {
 /**
  * Close the currently active tab by clicking its close button in the shell.
  */
-export async function closeTab() {
-  const before = await withShell((evalIn) => evalIn(`document.querySelectorAll('.tabs-container .tab').length`));
+export async function closeTab({ _deps } = {}) {
+  const deps = _resolve(_deps);
+  const { getClient, sleep } = deps;
+  const before = await withShell(deps, (evalIn) => evalIn(`document.querySelectorAll('.tabs-container .tab').length`));
   if (before <= 1) {
     throw new Error('Cannot close the last tab. Use tv_launch to restart TradingView instead.');
   }
 
-  const result = await withShell(async (evalIn) => {
+  const result = await withShell(deps, async (evalIn) => {
     const clicked = await evalIn(`
       (function() {
         var active = document.querySelector('.tabs-container .tab.active') || document.querySelectorAll('.tabs-container .tab')[0];
@@ -268,7 +287,7 @@ export async function closeTab() {
       })()
     `);
     if (!clicked) throw new Error('Close button not found on the active tab.');
-    await new Promise(r => setTimeout(r, 1000));
+    await sleep(1000);
     return evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
   });
 
@@ -284,8 +303,10 @@ export async function closeTab() {
  * chart target actually became visible, then re-attaches the CDP client so
  * subsequent reads follow it.
  */
-export async function switchTab({ index }) {
-  const tabs = await list();
+export async function switchTab({ index, _deps }) {
+  const deps = _resolve(_deps);
+  const { reconnectTo, sleep } = deps;
+  const tabs = await list({ _deps });
   const idx = Number(index);
 
   if (idx >= tabs.tab_count) {
@@ -294,15 +315,15 @@ export async function switchTab({ index }) {
 
   const target = tabs.tabs[idx];
 
-  if (!(await isTargetVisible(target.id))) {
-    const clicked = await withShell(async (evalIn) => {
+  if (!(await isTargetVisible(deps, target.id))) {
+    const clicked = await withShell(deps, async (evalIn) => {
       const count = await evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
       // Try the same ordinal first (shell order usually matches), then the rest.
       const order = [...new Set([Math.min(idx, count - 1), ...Array.from({ length: count }, (_, k) => k)])];
       for (const k of order) {
         await evalIn(`document.querySelectorAll('.tabs-container .tab')[${k}].click()`);
-        await new Promise(r => setTimeout(r, 400));
-        if (await isTargetVisible(target.id)) return k;
+        await sleep(400);
+        if (await isTargetVisible(deps, target.id)) return k;
       }
       return null;
     });
