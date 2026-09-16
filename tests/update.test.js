@@ -5,8 +5,11 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { update } from '../src/core/update.js';
-import { classifyUpdate } from '../src/core/health.js';
+import { classifyUpdate, repoGit } from '../src/core/health.js';
 
 const OLD = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NEW = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -168,5 +171,18 @@ describe('classifyUpdate() — ahead vs behind', () => {
     const result = classifyUpdate(OLD, 'abc123 && echo pwned', git);
     assert.deepEqual(result, { behind: false, ahead: 0 });
     assert.equal(calls.length, 0, 'a malformed sha must never reach a shell command');
+  });
+});
+
+describe('repoGit() — update check reads this repo', () => {
+  it('runs git in the repo root even when started from another folder', () => {
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+    const startDir = process.cwd();
+    process.chdir(tmpdir());
+    try {
+      assert.equal(resolve(repoGit('rev-parse --show-toplevel')), repoRoot);
+    } finally {
+      process.chdir(startDir);
+    }
   });
 });

@@ -5,6 +5,18 @@ import { getClient, getTargetInfo, evaluate, CDP_HOST, CDP_PORT } from '../conne
 import { existsSync, cpSync, rmSync, readdirSync } from 'fs';
 import { execSync, spawn } from 'child_process';
 import { dirname, basename, join } from 'path';
+import { fileURLToPath } from 'url';
+
+// src/core/health.js -> repo root, independent of process.cwd() (as in update.js)
+const REPO_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+
+/**
+ * Run git in this repo. Without the cwd, the update check read whichever repo
+ * the MCP server or `tv` CLI happened to be started from.
+ */
+export function repoGit(args) {
+  return execSync(`git ${args}`, { cwd: REPO_ROOT, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+}
 
 // Best-effort git-pull update check: compare local HEAD to origin's default
 // branch on GitHub. Never throws — returns null on any failure (offline,
@@ -42,9 +54,8 @@ async function checkForUpdate() {
   if (_updateCache && (Date.now() - _updateCache.at) < 3600_000) return _updateCache.value;
   let value = null;
   try {
-    const git = (args) => execSync(`git ${args}`, { timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    const localSha = git('rev-parse HEAD');
-    const remoteUrl = git('config --get remote.origin.url');
+    const localSha = repoGit('rev-parse HEAD');
+    const remoteUrl = repoGit('config --get remote.origin.url');
     const m = remoteUrl.match(/github\.com[:/](.+?)(?:\.git)?$/);
     if (localSha && m) {
       const repo = m[1];
@@ -58,7 +69,7 @@ async function checkForUpdate() {
         req.setTimeout(3000, () => { req.destroy(); resolve(null); });
       });
       if (remoteSha) {
-        const { behind, ahead } = classifyUpdate(localSha, remoteSha, git);
+        const { behind, ahead } = classifyUpdate(localSha, remoteSha, repoGit);
         value = {
           update_available: behind,
           local_commit: localSha.slice(0, 8),
