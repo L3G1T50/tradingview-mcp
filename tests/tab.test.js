@@ -123,6 +123,18 @@ describe('switchTab()', () => {
     assert.equal(CDP.opened.length, 0);
   });
 
+  it('rejects negative, fractional and non-numeric indexes before any request', async () => {
+    for (const index of [-1, 1.5, 'abc', undefined]) {
+      const fetch = mockFetch([CHART_A, CHART_B]);
+      await assert.rejects(
+        () => switchTab({ index, _deps: { fetch, CDP: mockCDP({}) } }),
+        /Tab index must be a non-negative integer/,
+        `index ${JSON.stringify(index)}`,
+      );
+      assert.equal(fetch.urls.length, 0, `no /json/list request for ${JSON.stringify(index)}`);
+    }
+  });
+
   it('skips shell clicks when the target is already visible, then re-attaches', async () => {
     const shell = shellWindow({ count: 2 });
     const CDP = mockCDP({ shell: shell.handler, B: visibility(() => true) });

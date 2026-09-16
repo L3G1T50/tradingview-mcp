@@ -29,7 +29,7 @@ export function registerTabTools(server) {
   });
 
   server.tool('tab_switch', 'Switch to a chart tab by index', {
-    index: z.coerce.number().describe('Tab index (0-based, from tab_list)'),
+    index: z.coerce.number().int().min(0).describe('Tab index (0-based, from tab_list)'),
   }, async ({ index }) => {
     try { return jsonResult(await core.switchTab({ index })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }

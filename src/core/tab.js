@@ -306,9 +306,13 @@ export async function closeTab({ _deps } = {}) {
 export async function switchTab({ index, _deps }) {
   const deps = _resolve(_deps);
   const { reconnectTo, sleep } = deps;
-  const tabs = await list({ _deps });
   const idx = Number(index);
+  // The CLI passes raw strings; anything else would index tabs.tabs with NaN/-1/1.5.
+  if (!Number.isInteger(idx) || idx < 0) {
+    throw new Error(`Tab index must be a non-negative integer, got ${JSON.stringify(index)}`);
+  }
 
+  const tabs = await list({ _deps });
   if (idx >= tabs.tab_count) {
     throw new Error(`Tab index ${idx} out of range (have ${tabs.tab_count} tabs)`);
   }
