@@ -1,8 +1,9 @@
 /**
  * CLI command router using node:util parseArgs.
- * Zero dependencies — uses only Node.js built-ins.
+ * No argument-parsing dependency — uses only Node.js built-ins for that.
  */
 import { parseArgs } from 'node:util';
+import { disconnect } from '../connection.js';
 
 /** @type {Map<string, { description: string, options?: object, handler: Function, subcommands?: Map<string, object> }>} */
 const commands = new Map();
@@ -105,7 +106,7 @@ export async function run(argv) {
       }
       await execute(handler, values, positionals);
     } catch (err) {
-      handleError(err);
+      await handleError(err);
     }
   } else {
     handler = cmd.handler;
@@ -123,7 +124,7 @@ export async function run(argv) {
       }
       await execute(handler, values, positionals);
     } catch (err) {
-      handleError(err);
+      await handleError(err);
     }
   }
 }
@@ -132,19 +133,31 @@ async function execute(handler, values, positionals) {
   try {
     const result = await handler(values, positionals);
     console.log(JSON.stringify(result, null, 2));
-    process.exit(0);
+    await finish(0);
   } catch (err) {
-    handleError(err);
+    await handleError(err);
   }
 }
 
-function handleError(err) {
+async function handleError(err) {
   const message = err.message || String(err);
-  // Connection failures get exit code 2
-  if (/CDP|connection|ECONNREFUSED|not running/i.test(message)) {
-    console.error(JSON.stringify({ success: false, error: message }, null, 2));
-    process.exit(2);
-  }
   console.error(JSON.stringify({ success: false, error: message }, null, 2));
-  process.exit(1);
+  // Connection failures get exit code 2
+  await finish(/CDP|connection|ECONNREFUSED|not running/i.test(message) ? 2 : 1);
+}
+
+// Long enough for fetch() to finish closing its sockets; short enough not to be noticed.
+const EXIT_GRACE_MS = 1000;
+
+/**
+ * Let the process exit on its own instead of calling process.exit() right away.
+ * On Windows, process.exit() shortly after an HTTPS fetch() aborts Node with
+ * "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" and exit code
+ * 0xC0000409, even though the command succeeded (nodejs/node#56645).
+ * The unref'd timer only fires if something still holds the event loop open.
+ */
+async function finish(code) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), EXIT_GRACE_MS).unref();
+  await disconnect();
 }
