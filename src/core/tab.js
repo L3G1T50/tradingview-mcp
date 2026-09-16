@@ -160,11 +160,12 @@ export async function newTab({ layout, name, _deps } = {}) {
 
   if (!layout) {
     const state = await list({ _deps });
+    // Spread first: list() always reports success: true, which must not win.
     return {
+      ...state,
       success: shellCounts ? shellCounts.after > shellCounts.before : !!landing,
       action: 'new_tab_opened',
       note: 'Tab is on the layout picker. Call tab_new with layout: "new" or a saved layout name to open a chart in it.',
-      ...state,
     };
   }
 

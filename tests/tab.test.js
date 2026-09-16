@@ -303,6 +303,32 @@ describe('newTab() without a layout', () => {
     assert.equal(CDP.opened.length, 0, 'no shell click when a landing tab already exists');
   });
 
+  /** Shell whose new-tab button exists; clicking it adds a tab only if `adds`. */
+  function shellWithNewTabButton({ count, adds }) {
+    const shell = shellWindow({ count });
+    const handler = (expr) => {
+      if (!expr.includes('create-new-tab')) return shell.handler(expr);
+      if (adds) shell.state.count++;
+      return true;
+    };
+    return { handler };
+  }
+
+  it('reports success when the new-tab click adds a tab', async () => {
+    const CDP = mockCDP({ shell: shellWithNewTabButton({ count: 1, adds: true }).handler });
+    const result = await newTab({ _deps: { fetch: mockFetch([SHELL, CHART_A]), CDP, sleep: noSleep } });
+    assert.equal(result.success, true);
+    assert.equal(result.action, 'new_tab_opened');
+  });
+
+  it('reports failure when the new-tab click does not add a tab', async () => {
+    const CDP = mockCDP({ shell: shellWithNewTabButton({ count: 1, adds: false }).handler });
+    const result = await newTab({ _deps: { fetch: mockFetch([SHELL, CHART_A]), CDP, sleep: noSleep } });
+    assert.equal(result.success, false, "list()'s success: true must not overwrite the computed result");
+    assert.equal(result.action, 'new_tab_opened');
+    assert.equal(result.tab_count, 1);
+  });
+
   it('surfaces a missing new-tab button', async () => {
     // shellWindow answers undefined to the create-new-tab click, i.e. no button.
     const shell = shellWindow({ count: 1 });
