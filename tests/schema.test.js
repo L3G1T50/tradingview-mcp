@@ -10,14 +10,17 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { booleanParam } from '../src/tools/_schema.js';
+import { booleanParam, indexParam } from '../src/tools/_schema.js';
 import { registerAlertTools } from '../src/tools/alerts.js';
 import { registerDataTools } from '../src/tools/data.js';
 import { registerHealthTools } from '../src/tools/health.js';
 import { registerIndicatorTools } from '../src/tools/indicators.js';
 import { registerUiTools } from '../src/tools/ui.js';
+import { registerTabTools } from '../src/tools/tab.js';
 
-const REGISTER = [registerAlertTools, registerDataTools, registerHealthTools, registerIndicatorTools, registerUiTools];
+const REGISTER = [
+  registerAlertTools, registerDataTools, registerHealthTools, registerIndicatorTools, registerUiTools, registerTabTools,
+];
 
 /** Collects each tool's parameter shape without starting a server. */
 function toolShapes() {
@@ -53,6 +56,31 @@ describe('booleanParam()', () => {
     const optional = booleanParam().optional();
     assert.equal(optional.parse(undefined), undefined);
     assert.equal(optional.parse('false'), false);
+  });
+});
+
+// ── indexParam() ─────────────────────────────────────────────────────────
+
+describe('indexParam()', () => {
+  const schema = indexParam();
+
+  it('accepts non-negative integers and digit strings', () => {
+    for (const [input, expected] of [[0, 0], [2, 2], ['0', 0], ['2', 2], [' 3 ', 3], ['01', 1]]) {
+      assert.equal(schema.parse(input), expected, `input ${JSON.stringify(input)}`);
+    }
+  });
+
+  // The regression: z.coerce.number() read the first four of these as 0.
+  it('rejects blanks, null, booleans, negatives, fractions and other strings', () => {
+    for (const input of ['', ' ', null, false, true, -1, 1.5, '-1', '1.5', '0x1', 'abc', NaN, []]) {
+      assert.equal(schema.safeParse(input).success, false, `input ${JSON.stringify(input)}`);
+    }
+  });
+
+  it('is what tab_switch uses for index', () => {
+    const index = toolShapes().get('tab_switch').index;
+    assert.equal(index.parse('1'), 1);
+    assert.equal(index.safeParse('').success, false);
   });
 });
 
@@ -105,6 +133,8 @@ describe('boolean tool parameters', () => {
       ]) {
         assert.equal(property(tool, name).type, 'boolean', `${tool}.${name}`);
       }
+      assert.equal(property('tab_switch', 'index').type, 'integer');
+      assert.equal(property('tab_switch', 'index').minimum, 0);
     } finally {
       await client.close();
     }

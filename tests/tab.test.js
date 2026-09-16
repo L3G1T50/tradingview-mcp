@@ -124,7 +124,8 @@ describe('switchTab()', () => {
   });
 
   it('rejects negative, fractional and non-numeric indexes before any request', async () => {
-    for (const index of [-1, 1.5, 'abc', undefined]) {
+    // '', ' ', null and false are the ones Number() would silently read as 0.
+    for (const index of [-1, 1.5, 'abc', undefined, '', '  ', null, false, '0x1', '1.5', '-1']) {
       const fetch = mockFetch([CHART_A, CHART_B]);
       await assert.rejects(
         () => switchTab({ index, _deps: { fetch, CDP: mockCDP({}) } }),

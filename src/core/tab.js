@@ -314,8 +314,11 @@ export async function closeTab({ _deps } = {}) {
 export async function switchTab({ index, _deps }) {
   const deps = _resolve(_deps);
   const { reconnectTo, sleep } = deps;
-  const idx = Number(index);
-  // The CLI passes raw strings; anything else would index tabs.tabs with NaN/-1/1.5.
+  // The CLI passes raw strings. Only digits count: Number() alone reads '', ' ',
+  // null and false as 0, and anything else would index tabs.tabs with NaN/-1/1.5.
+  const idx = typeof index === 'number' ? index
+    : typeof index === 'string' && /^\s*\d+\s*$/.test(index) ? Number(index)
+    : NaN;
   if (!Number.isInteger(idx) || idx < 0) {
     throw new Error(`Tab index must be a non-negative integer, got ${JSON.stringify(index)}`);
   }
