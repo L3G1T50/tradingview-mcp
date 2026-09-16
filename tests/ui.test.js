@@ -251,7 +251,23 @@ describe('mouseClick()', () => {
     assert.deepEqual(mc.events.mouse.map(e => e.type),
       ['mouseMoved', 'mousePressed', 'mouseReleased', 'mousePressed', 'mouseReleased']);
     assert.equal(mc.events.mouse[3].clickCount, 2);
-    assert.equal(mc.events.mouse[1].buttons, 0);
+    assert.equal(mc.events.mouse[1].buttons, 1, 'left is bit 1 of the CDP buttons mask, not DOM button 0');
+    assert.equal(mc.events.mouse[3].buttons, 1);
+  });
+
+  it('sends the middle button as mask 4', async () => {
+    const mc = mockClient();
+    const result = await mouseClick({ x: 2, y: 3, button: 'middle', _deps: { getClient: mc.getClient } });
+    assert.equal(result.button, 'middle');
+    assert.equal(mc.events.mouse[1].button, 'middle');
+    assert.equal(mc.events.mouse[1].buttons, 4, 'middle is bit 4 of the CDP buttons mask, not DOM button 1');
+  });
+
+  it('reports no buttons held on release', async () => {
+    const mc = mockClient();
+    await mouseClick({ x: 2, y: 3, button: 'left', _deps: { getClient: mc.getClient } });
+    assert.equal(mc.events.mouse[2].type, 'mouseReleased');
+    assert.equal(mc.events.mouse[2].buttons ?? 0, 0);
   });
 });
 

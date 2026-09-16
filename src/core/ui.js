@@ -264,13 +264,15 @@ export async function mouseClick({ x, y, button, double_click, _deps }) {
   const { getClient } = _resolve(_deps);
   const c = await getClient();
   const btn = button === 'right' ? 'right' : button === 'middle' ? 'middle' : 'left';
-  const btnNum = btn === 'right' ? 2 : btn === 'middle' ? 1 : 0;
+  // CDP `buttons` is a bitmask of the buttons held down (left 1, right 2, middle 4),
+  // not the DOM `button` index (left 0, middle 1, right 2).
+  const heldButtons = btn === 'right' ? 2 : btn === 'middle' ? 4 : 1;
   await c.Input.dispatchMouseEvent({ type: 'mouseMoved', x, y });
-  await c.Input.dispatchMouseEvent({ type: 'mousePressed', x, y, button: btn, buttons: btnNum, clickCount: 1 });
+  await c.Input.dispatchMouseEvent({ type: 'mousePressed', x, y, button: btn, buttons: heldButtons, clickCount: 1 });
   await c.Input.dispatchMouseEvent({ type: 'mouseReleased', x, y, button: btn });
   if (double_click) {
     await new Promise(r => setTimeout(r, 50));
-    await c.Input.dispatchMouseEvent({ type: 'mousePressed', x, y, button: btn, buttons: btnNum, clickCount: 2 });
+    await c.Input.dispatchMouseEvent({ type: 'mousePressed', x, y, button: btn, buttons: heldButtons, clickCount: 2 });
     await c.Input.dispatchMouseEvent({ type: 'mouseReleased', x, y, button: btn });
   }
   return { success: true, x, y, button: btn, double_click: !!double_click };
