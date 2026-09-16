@@ -268,6 +268,19 @@ describe('closeTab()', () => {
     assert.equal(CDP.opened.length, CDP.closed, 'decoy clients are closed too');
   });
 
+  it('surfaces a missing close button instead of retrying on another shell', async () => {
+    const SHELL2 = { ...SHELL, id: 'shell2' };
+    const first = shellWindow({ count: 2, closeResult: false });
+    const second = shellWindow({ count: 2 });
+    const CDP = mockCDP({ shell: first.handler, shell2: second.handler });
+    await assert.rejects(
+      () => closeTab({ _deps: { fetch: mockFetch([SHELL, SHELL2, CHART_A]), CDP, getClient: async () => {}, sleep: noSleep } }),
+      /Close button not found on the active tab/,
+    );
+    assert.deepEqual(second.clicks, [], 'the close click is not repeated on another window');
+    assert.equal(CDP.opened.length, CDP.closed, 'every CDP client is closed');
+  });
+
   it('throws when no shell window is found', async () => {
     await assert.rejects(
       () => closeTab({ _deps: { fetch: mockFetch([CHART_A]), CDP: mockCDP({}), getClient: async () => {}, sleep: noSleep } }),
@@ -288,5 +301,16 @@ describe('newTab() without a layout', () => {
     assert.equal(result.action, 'new_tab_opened');
     assert.equal(result.tab_count, 2);
     assert.equal(CDP.opened.length, 0, 'no shell click when a landing tab already exists');
+  });
+
+  it('surfaces a missing new-tab button', async () => {
+    // shellWindow answers undefined to the create-new-tab click, i.e. no button.
+    const shell = shellWindow({ count: 1 });
+    const CDP = mockCDP({ shell: shell.handler });
+    await assert.rejects(
+      () => newTab({ _deps: { fetch: mockFetch([SHELL, CHART_A]), CDP, sleep: noSleep } }),
+      /New-tab button not found in shell window/,
+    );
+    assert.equal(CDP.opened.length, CDP.closed, 'every CDP client is closed');
   });
 });

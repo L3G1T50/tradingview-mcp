@@ -59,23 +59,30 @@ async function withShell(deps, fn) {
 
   for (const cand of candidates) {
     let c = null;
+    let isShell = false;
     try {
       c = await CDP({ host: CDP_HOST, port: CDP_PORT, target: cand.id });
       const probe = await c.Runtime.evaluate({
         expression: `!!document.querySelector('.tabs-container .tab')`,
         returnByValue: true,
       });
-      if (probe.result?.value) {
-        const out = await fn(async (expression) => {
-          const { result } = await c.Runtime.evaluate({ expression, returnByValue: true });
-          return result?.value;
-        });
-        await c.close();
-        return out;
-      }
-      await c.close();
-    } catch {
+      isShell = !!probe.result?.value;
+    } catch { /* unreachable target — try the next candidate */ }
+
+    if (!isShell) {
       try { if (c) await c.close(); } catch { /* already gone */ }
+      continue;
+    }
+
+    // Only the probe may fall through to another candidate. Errors from fn are
+    // real failures on this shell, and retrying fn elsewhere could repeat a click.
+    try {
+      return await fn(async (expression) => {
+        const { result } = await c.Runtime.evaluate({ expression, returnByValue: true });
+        return result?.value;
+      });
+    } finally {
+      try { await c.close(); } catch { /* already gone */ }
     }
   }
   throw new Error('TradingView shell window (tab bar) not found. Is this TradingView Desktop with tabs?');
