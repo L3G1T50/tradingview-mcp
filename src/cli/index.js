@@ -5,7 +5,7 @@
  * Outputs JSON to stdout. Errors to stderr.
  * Exit codes: 0 success, 1 error, 2 connection failure.
  *
- * All 70 MCP tools are accessible via CLI commands.
+ * Commands call the same core functions as the MCP tools; run `tv --help` for the list.
  * Pipe-friendly: every command outputs JSON for use with jq.
  */
 
