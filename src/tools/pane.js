@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
+import { indexParam } from './_schema.js';
 import * as core from '../core/pane.js';
 
 export function registerPaneTools(server) {
@@ -16,14 +17,14 @@ export function registerPaneTools(server) {
   });
 
   server.tool('pane_focus', 'Focus a specific chart pane by index (0-based)', {
-    index: z.coerce.number().describe('Pane index (0-based, from pane_list)'),
+    index: indexParam().describe('Pane index (0-based, from pane_list)'),
   }, async ({ index }) => {
     try { return jsonResult(await core.focus({ index })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }
   });
 
   server.tool('pane_set_symbol', 'Set the symbol on a specific pane by index', {
-    index: z.coerce.number().describe('Pane index (0-based)'),
+    index: indexParam().describe('Pane index (0-based)'),
     symbol: z.string().describe('Symbol to set (e.g., NQ1!, ES1!, AAPL)'),
   }, async ({ index, symbol }) => {
     try { return jsonResult(await core.setSymbol({ index, symbol })); }

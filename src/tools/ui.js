@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
-import { booleanParam } from './_schema.js';
+import { booleanParam, numberParam } from './_schema.js';
 import * as core from '../core/ui.js';
 
 export function registerUiTools(server) {
@@ -62,15 +62,15 @@ export function registerUiTools(server) {
 
   server.tool('ui_scroll', 'Scroll the chart or page up/down/left/right', {
     direction: z.enum(['up', 'down', 'left', 'right']).describe('Scroll direction'),
-    amount: z.coerce.number().optional().describe('Scroll amount in pixels (default 300)'),
+    amount: numberParam().optional().describe('Scroll amount in pixels (default 300)'),
   }, async ({ direction, amount }) => {
     try { return jsonResult(await core.scroll({ direction, amount })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }
   });
 
   server.tool('ui_mouse_click', 'Click at specific x,y coordinates on the TradingView window', {
-    x: z.coerce.number().describe('X coordinate (pixels from left)'),
-    y: z.coerce.number().describe('Y coordinate (pixels from top)'),
+    x: numberParam().describe('X coordinate (pixels from left)'),
+    y: numberParam().describe('Y coordinate (pixels from top)'),
     button: z.enum(['left', 'right', 'middle']).optional().describe('Mouse button (default left)'),
     double_click: booleanParam().optional().describe('Double click (default false)'),
   }, async ({ x, y, button, double_click }) => {

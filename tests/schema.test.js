@@ -12,14 +12,20 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { booleanParam, indexParam, numberParam } from '../src/tools/_schema.js';
 import { registerAlertTools } from '../src/tools/alerts.js';
+import { registerBatchTools } from '../src/tools/batch.js';
+import { registerChartTools } from '../src/tools/chart.js';
 import { registerDataTools } from '../src/tools/data.js';
+import { registerDrawingTools } from '../src/tools/drawing.js';
 import { registerHealthTools } from '../src/tools/health.js';
 import { registerIndicatorTools } from '../src/tools/indicators.js';
+import { registerPaneTools } from '../src/tools/pane.js';
+import { registerReplayTools } from '../src/tools/replay.js';
 import { registerUiTools } from '../src/tools/ui.js';
 import { registerTabTools } from '../src/tools/tab.js';
 
 const REGISTER = [
-  registerAlertTools, registerDataTools, registerHealthTools, registerIndicatorTools, registerUiTools, registerTabTools,
+  registerAlertTools, registerBatchTools, registerChartTools, registerDataTools, registerDrawingTools,
+  registerHealthTools, registerIndicatorTools, registerPaneTools, registerReplayTools, registerUiTools, registerTabTools,
 ];
 
 /** Collects each tool's parameter shape without starting a server. */
@@ -29,6 +35,59 @@ function toolShapes() {
   for (const register of REGISTER) register(server);
   return shapes;
 }
+
+/** Looks up a tool parameter's schema; "point.time" reaches into an object parameter. */
+function toolParam(tool, path) {
+  const [name, field] = path.split('.');
+  let schema = toolShapes().get(tool)[name];
+  if (field) {
+    if (schema instanceof z.ZodOptional) schema = schema.unwrap();
+    schema = schema.shape[field];
+  }
+  return schema;
+}
+
+/** Lists the tools the way an MCP client sees them. */
+async function listedTools() {
+  const server = new McpServer({ name: 'schema-test', version: '0' });
+  for (const register of REGISTER) register(server);
+  const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverSide);
+  const client = new Client({ name: 'schema-test', version: '0' });
+  await client.connect(clientSide);
+  try {
+    return (await client.listTools()).tools;
+  } finally {
+    await client.close();
+  }
+}
+
+/** Reads a parameter's JSON schema as advertised; "point.time" reaches into an object parameter. */
+function advertised(tools, tool, path) {
+  const [name, field] = path.split('.');
+  const property = tools.find((t) => t.name === tool).inputSchema.properties[name];
+  return field ? property.properties[field] : property;
+}
+
+// Every tool parameter that used z.coerce.number(), which read "", " ", null
+// and false as 0 and true as 1.
+const NUMBER_PARAMS = [
+  ['alert_create', 'price'],
+  ['batch_run', 'delay_ms'], ['batch_run', 'ohlcv_count'],
+  ['chart_set_visible_range', 'from'], ['chart_set_visible_range', 'to'],
+  ['data_get_ohlcv', 'count'], ['data_get_trades', 'max_trades'], ['data_get_pine_labels', 'max_labels'],
+  ['draw_shape', 'point.time'], ['draw_shape', 'point.price'],
+  ['draw_shape', 'point2.time'], ['draw_shape', 'point2.price'],
+  ['tv_launch', 'port'],
+  ['indicator_search', 'limit'],
+  ['replay_autoplay', 'speed'],
+  ['ui_scroll', 'amount'], ['ui_mouse_click', 'x'], ['ui_mouse_click', 'y'],
+];
+const INDEX_PARAMS = [
+  ['alert_delete', 'alert_id'],
+  ['pane_focus', 'index'], ['pane_set_symbol', 'index'],
+  ['tab_switch', 'index'],
+];
 
 // ── booleanParam() ───────────────────────────────────────────────────────
 
@@ -150,31 +209,68 @@ describe('boolean tool parameters', () => {
   });
 
   it('advertises the parameters as plain booleans to MCP clients', async () => {
-    const server = new McpServer({ name: 'schema-test', version: '0' });
-    for (const register of REGISTER) register(server);
-    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-    await server.connect(serverSide);
-    const client = new Client({ name: 'schema-test', version: '0' });
-    await client.connect(clientSide);
-    try {
-      const { tools } = await client.listTools();
-      const property = (tool, name) => tools.find((t) => t.name === tool).inputSchema.properties[name];
-      for (const [tool, name] of [
-        ['alert_delete', 'delete_all'],
-        ['tv_launch', 'kill_existing'],
-        ['indicator_toggle_visibility', 'visible'],
-        ['data_get_ohlcv', 'summary'],
-        ['ui_mouse_click', 'double_click'],
-      ]) {
-        assert.equal(property(tool, name).type, 'boolean', `${tool}.${name}`);
+    const tools = await listedTools();
+    for (const [tool, name] of [
+      ['alert_delete', 'delete_all'],
+      ['tv_launch', 'kill_existing'],
+      ['indicator_toggle_visibility', 'visible'],
+      ['data_get_ohlcv', 'summary'],
+      ['ui_mouse_click', 'double_click'],
+    ]) {
+      assert.equal(advertised(tools, tool, name).type, 'boolean', `${tool}.${name}`);
+    }
+  });
+});
+
+// ── Tools that take numbers ──────────────────────────────────────────────
+
+describe('number tool parameters', () => {
+  it('accept numbers and numeric strings', () => {
+    for (const [tool, path] of NUMBER_PARAMS) {
+      assert.equal(toolParam(tool, path).parse('12.5'), 12.5, `${tool}.${path}`);
+      assert.equal(toolParam(tool, path).parse(-3), -3, `${tool}.${path}`);
+    }
+    for (const [tool, path] of INDEX_PARAMS) {
+      assert.equal(toolParam(tool, path).parse('12'), 12, `${tool}.${path}`);
+      assert.equal(toolParam(tool, path).parse(0), 0, `${tool}.${path}`);
+    }
+  });
+
+  it('reject blanks, null and booleans instead of reading them as 0 or 1', () => {
+    for (const [tool, path] of [...NUMBER_PARAMS, ...INDEX_PARAMS]) {
+      for (const input of ['', ' ', null, false, true, 'abc']) {
+        assert.equal(toolParam(tool, path).safeParse(input).success, false, `${tool}.${path} with ${JSON.stringify(input)}`);
       }
-      assert.equal(property('tab_switch', 'index').type, 'integer');
-      assert.equal(property('tab_switch', 'index').minimum, 0);
-      assert.equal(property('alert_create', 'price').type, 'number');
-      assert.equal(property('alert_delete', 'alert_id').type, 'integer');
-      assert.equal(property('alert_delete', 'alert_id').minimum, 0);
-    } finally {
-      await client.close();
+    }
+  });
+
+  it('reject negative and fractional indexes', () => {
+    for (const [tool, path] of INDEX_PARAMS) {
+      for (const input of [-1, 1.5, '-1', '1.5']) {
+        assert.equal(toolParam(tool, path).safeParse(input).success, false, `${tool}.${path} with ${JSON.stringify(input)}`);
+      }
+    }
+  });
+
+  it('no tool file uses z.coerce.number()', () => {
+    const toolsDir = fileURLToPath(new URL('../src/tools/', import.meta.url));
+    for (const file of readdirSync(toolsDir).filter((f) => f.endsWith('.js'))) {
+      const source = readFileSync(toolsDir + file, 'utf8')
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('*'))
+        .join('\n');
+      assert.doesNotMatch(source, /z\.coerce\.number\(/, `${file} should use numberParam() or indexParam()`);
+    }
+  });
+
+  it('advertises numbers as numbers and indexes as non-negative integers to MCP clients', async () => {
+    const tools = await listedTools();
+    for (const [tool, path] of NUMBER_PARAMS) {
+      assert.equal(advertised(tools, tool, path).type, 'number', `${tool}.${path}`);
+    }
+    for (const [tool, path] of INDEX_PARAMS) {
+      assert.equal(advertised(tools, tool, path).type, 'integer', `${tool}.${path}`);
+      assert.equal(advertised(tools, tool, path).minimum, 0, `${tool}.${path}`);
     }
   });
 });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
+import { numberParam } from './_schema.js';
 import * as core from '../core/replay.js';
 
 export function registerReplayTools(server) {
@@ -16,7 +17,7 @@ export function registerReplayTools(server) {
   });
 
   server.tool('replay_autoplay', 'Toggle autoplay in replay mode, optionally set speed', {
-    speed: z.coerce.number().optional().describe('Autoplay delay in ms (lower = faster). Valid values: 100, 143, 200, 300, 1000, 2000, 3000, 5000, 10000. Leave empty to just toggle.'),
+    speed: numberParam().optional().describe('Autoplay delay in ms (lower = faster). Valid values: 100, 143, 200, 300, 1000, 2000, 3000, 5000, 10000. Leave empty to just toggle.'),
   }, async ({ speed }) => {
     try { return jsonResult(await core.autoplay({ speed })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }

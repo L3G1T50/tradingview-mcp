@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
-import { booleanParam } from './_schema.js';
+import { booleanParam, numberParam } from './_schema.js';
 import * as core from '../core/data.js';
 
 export function registerDataTools(server) {
   server.tool('data_get_ohlcv', 'Get OHLCV bar data from the chart. Use summary=true for compact stats instead of all bars (saves context).', {
-    count: z.coerce.number().optional().describe('Number of bars to retrieve (max 500, default 100)'),
+    count: numberParam().optional().describe('Number of bars to retrieve (max 500, default 100)'),
     summary: booleanParam().optional().describe('Return summary stats (high, low, open, close, avg volume, range) instead of all bars — much smaller output'),
   }, async ({ count, summary }) => {
     try { return jsonResult(await core.getOhlcv({ count, summary })); }
@@ -25,7 +25,7 @@ export function registerDataTools(server) {
   });
 
   server.tool('data_get_trades', 'Get trade list from Strategy Tester. Auto-opens the panel and auto-unhides a hidden strategy.', {
-    max_trades: z.coerce.number().optional().describe('Maximum trades to return'),
+    max_trades: numberParam().optional().describe('Maximum trades to return'),
   }, async ({ max_trades }) => {
     try { return jsonResult(await core.getTrades({ max_trades })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }
@@ -58,7 +58,7 @@ export function registerDataTools(server) {
 
   server.tool('data_get_pine_labels', 'Read text labels drawn by Pine Script indicators (label.new). Returns text and price pairs. Use study_filter to target a specific indicator.', {
     study_filter: z.string().optional().describe('Substring to match study name. Omit for all.'),
-    max_labels: z.coerce.number().optional().describe('Max labels per study (default 50). Set higher if you need all.'),
+    max_labels: numberParam().optional().describe('Max labels per study (default 50). Set higher if you need all.'),
     verbose: booleanParam().optional().describe('Return raw label data with IDs, colors, positions (default false — returns only text + price)'),
   }, async ({ study_filter, max_labels, verbose }) => {
     try { return jsonResult(await core.getPineLabels({ study_filter, max_labels, verbose })); }

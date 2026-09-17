@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
+import { numberParam } from './_schema.js';
 import * as core from '../core/drawing.js';
 
 export function registerDrawingTools(server) {
   server.tool('draw_shape', 'Draw a shape/line on the chart', {
     shape: z.string().describe('Shape type: horizontal_line, vertical_line, trend_line, rectangle, text'),
-    point: z.object({ time: z.coerce.number(), price: z.coerce.number() }).describe('{ time: unix_timestamp, price: number }'),
-    point2: z.object({ time: z.coerce.number(), price: z.coerce.number() }).optional().describe('Second point for two-point shapes (trend_line, rectangle)'),
+    point: z.object({ time: numberParam(), price: numberParam() }).describe('{ time: unix_timestamp, price: number }'),
+    point2: z.object({ time: numberParam(), price: numberParam() }).optional().describe('Second point for two-point shapes (trend_line, rectangle)'),
     overrides: z.string().optional().describe('JSON string of style overrides (e.g., \'{"linecolor": "#ff0000", "linewidth": 2}\')'),
     text: z.string().optional().describe('Text content for text shapes'),
   }, async ({ shape, point, point2, overrides, text }) => {

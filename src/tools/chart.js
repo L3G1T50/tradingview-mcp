@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
+import { numberParam } from './_schema.js';
 import * as core from '../core/chart.js';
 
 export function registerChartTools(server) {
@@ -47,8 +48,8 @@ export function registerChartTools(server) {
   });
 
   server.tool('chart_set_visible_range', 'Zoom the chart to a specific date range (unix timestamps)', {
-    from: z.coerce.number().describe('Start of range (unix timestamp in seconds)'),
-    to: z.coerce.number().describe('End of range (unix timestamp in seconds)'),
+    from: numberParam().describe('Start of range (unix timestamp in seconds)'),
+    to: numberParam().describe('End of range (unix timestamp in seconds)'),
   }, async ({ from, to }) => {
     try { return jsonResult(await core.setVisibleRange({ from, to })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }

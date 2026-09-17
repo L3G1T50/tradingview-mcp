@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
-import { booleanParam } from './_schema.js';
+import { booleanParam, numberParam } from './_schema.js';
 import * as core from '../core/indicators.js';
 
 export function registerIndicatorTools(server) {
@@ -22,7 +22,7 @@ export function registerIndicatorTools(server) {
 
   server.tool('indicator_search', 'Search TradingView\'s Indicators dialog for indicators, strategies, and community/public scripts by keyword. Returns matching titles grouped by section (Technicals, Community, My scripts, etc.).', {
     query: z.string().describe('Search keyword, e.g. "RSI", "supertrend", "order block"'),
-    limit: z.coerce.number().optional().describe('Max results to return (default 25)'),
+    limit: numberParam().optional().describe('Max results to return (default 25)'),
   }, async ({ query, limit }) => {
     try { return jsonResult(await core.searchStudies({ query, limit })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }
