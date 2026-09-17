@@ -218,6 +218,23 @@ describe('deleteAlerts()', () => {
     }
   });
 
+  // The string "false" is truthy, so a non-boolean must never reach `if (delete_all)`.
+  it('rejects a non-boolean delete_all without listing or deleting anything', async () => {
+    for (const delete_all of ['false', 'true', 0, 1, 'yes', {}]) {
+      for (const extra of [{}, { alert_id: 5 }]) {
+        const result = await deleteAlerts({ delete_all, ...extra, _deps: deps() });
+        assert.deepEqual(result,
+          { success: false, source: 'internal_api', error: `delete_all must be true or false, got: ${JSON.stringify(delete_all)}` },
+          `delete_all ${inspect(delete_all)} with ${inspect(extra)}`);
+      }
+    }
+  });
+
+  it('treats delete_all: null as not set', async () => {
+    const result = await deleteAlerts({ delete_all: null, _deps: deps() });
+    assert.deepEqual(result, { success: false, source: 'internal_api', error: 'Provide delete_all: true or an alert_id to delete.' });
+  });
+
   it('reports a failed delete with the ids it tried', async () => {
     const cases = [
       [{ ok: false, status: 403, response: '{"s":"error"}' }, '{"s":"error"}'],

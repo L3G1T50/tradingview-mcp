@@ -108,6 +108,10 @@ export async function list({ _deps } = {}) {
 
 export async function deleteAlerts({ delete_all, alert_ids, alert_id, _deps } = {}) {
   const { evaluate } = _resolve(_deps);
+  // Only a real boolean may mean "delete everything": the string "false" is truthy.
+  if (delete_all != null && typeof delete_all !== 'boolean') {
+    return { success: false, source: 'internal_api', error: `delete_all must be true or false, got: ${JSON.stringify(delete_all)}` };
+  }
   // Resolve the set of alert ids to delete.
   let ids = [];
   if (Array.isArray(alert_ids)) ids = ids.concat(alert_ids);
