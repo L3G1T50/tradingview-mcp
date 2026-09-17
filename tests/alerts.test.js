@@ -8,6 +8,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { inspect } from 'node:util';
 import { create, list, deleteAlerts } from '../src/core/alerts.js';
 import { safeString } from '../src/connection.js';
 
@@ -127,27 +128,26 @@ describe('list()', () => {
     assert.deepEqual(result, { success: true, alert_count: 0, source: 'internal_api', alerts: [], error: undefined });
   });
 
-  // The page code turns a rejected fetch or a non-"ok" response into
-  // { alerts: [], error }. list() passes the error on but keeps success: true.
-  it('passes on a failed fetch as error, with no alerts', async () => {
+  // The page code turns a rejected fetch or a non-"ok" response into { alerts: [], error }.
+  it('reports a failed fetch as a failure, not an empty list', async () => {
     const evaluateAsync = mockEval({ alerts: [], error: 'Failed to fetch' });
     const result = await list({ _deps: deps({ evaluateAsync }) });
-    assert.deepEqual(result, { success: true, alert_count: 0, source: 'internal_api', alerts: [], error: 'Failed to fetch' });
+    assert.deepEqual(result, { success: false, alert_count: 0, source: 'internal_api', alerts: [], error: 'Failed to fetch' });
   });
 
-  it('passes on a non-ok API response as error, with no alerts', async () => {
+  it('reports a non-ok API response as a failure', async () => {
     const evaluateAsync = mockEval({ alerts: [], error: 'Unexpected response' });
     const result = await list({ _deps: deps({ evaluateAsync }) });
-    assert.equal(result.alert_count, 0);
-    assert.deepEqual(result.alerts, []);
-    assert.equal(result.error, 'Unexpected response');
+    assert.deepEqual(result, { success: false, alert_count: 0, source: 'internal_api', alerts: [], error: 'Unexpected response' });
   });
 
-  it('handles an empty evaluate result', async () => {
-    for (const value of [undefined, null, {}]) {
+  it('reports a missing or malformed evaluate result as a failure', async () => {
+    for (const value of [undefined, null, {}, { alerts: 'nope' }]) {
       const evaluateAsync = mockEval(value);
       const result = await list({ _deps: deps({ evaluateAsync }) });
-      assert.deepEqual(result, { success: true, alert_count: 0, source: 'internal_api', alerts: [], error: undefined });
+      assert.deepEqual(result,
+        { success: false, alert_count: 0, source: 'internal_api', alerts: [], error: 'No alert list returned from TradingView' },
+        `result ${inspect(value)}`);
     }
   });
 });
@@ -206,10 +206,16 @@ describe('deleteAlerts()', () => {
     assert.equal(evaluateAsync.calls.length, 1);
   });
 
-  it('delete_all: true deletes nothing when the list fetch fails', async () => {
-    const evaluateAsync = mockEval({ alerts: [], error: 'Failed to fetch' });
-    const result = await deleteAlerts({ delete_all: true, _deps: deps({ evaluateAsync }) });
-    assert.equal(result.success, false);
+  it('delete_all: true deletes nothing and reports why when listing fails', async () => {
+    const cases = [
+      [{ alerts: [], error: 'Failed to fetch' }, 'Could not list alerts to delete: Failed to fetch'],
+      [null, 'Could not list alerts to delete: No alert list returned from TradingView'],
+    ];
+    for (const [pageResult, error] of cases) {
+      const evaluateAsync = mockEval(pageResult);
+      const result = await deleteAlerts({ delete_all: true, _deps: deps({ evaluateAsync }) });
+      assert.deepEqual(result, { success: false, source: 'internal_api', error });
+    }
   });
 
   it('reports a failed delete with the ids it tried', async () => {

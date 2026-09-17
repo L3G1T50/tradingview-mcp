@@ -100,7 +100,10 @@ export async function list({ _deps } = {}) {
       })
       .catch(function(e) { return { alerts: [], error: e.message }; })
   `);
-  return { success: true, alert_count: result?.alerts?.length || 0, source: 'internal_api', alerts: result?.alerts || [], error: result?.error };
+  // A failed fetch or a missing result is an error, not an empty list.
+  const alerts = Array.isArray(result?.alerts) ? result.alerts : [];
+  const error = result?.error || (Array.isArray(result?.alerts) ? undefined : 'No alert list returned from TradingView');
+  return { success: !error, alert_count: alerts.length, source: 'internal_api', alerts, error };
 }
 
 export async function deleteAlerts({ delete_all, alert_ids, alert_id, _deps } = {}) {
@@ -111,7 +114,10 @@ export async function deleteAlerts({ delete_all, alert_ids, alert_id, _deps } = 
   if (alert_id != null) ids.push(alert_id);
   if (delete_all) {
     const listed = await list({ _deps });
-    ids = (listed.alerts || []).map((a) => a.alert_id);
+    if (!listed.success) {
+      return { success: false, source: 'internal_api', error: `Could not list alerts to delete: ${listed.error}` };
+    }
+    ids = listed.alerts.map((a) => a.alert_id);
   }
   ids = ids.filter((x) => x != null);
   if (!ids.length) {
