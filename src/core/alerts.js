@@ -115,10 +115,18 @@ export async function deleteAlerts({ delete_all, alert_ids, alert_id, _deps } = 
   if (delete_all != null && typeof delete_all !== 'boolean') {
     return { success: false, source: 'internal_api', error: `delete_all must be true or false, got: ${JSON.stringify(delete_all)}` };
   }
+  // The CLI passes raw strings. Only digits count: Number() alone reads '', ' ' and
+  // false as 0, and a bare --id arrives as true, which it reads as 1.
+  const id = typeof alert_id === 'number' ? alert_id
+    : typeof alert_id === 'string' && /^\s*\d+\s*$/.test(alert_id) ? Number(alert_id)
+    : NaN;
+  if (alert_id != null && !(Number.isSafeInteger(id) && id >= 0)) {
+    return { success: false, source: 'internal_api', error: `alert_id must be a non-negative integer, got: ${JSON.stringify(alert_id)}` };
+  }
   // Resolve the set of alert ids to delete.
   let ids = [];
   if (Array.isArray(alert_ids)) ids = ids.concat(alert_ids);
-  if (alert_id != null) ids.push(alert_id);
+  if (alert_id != null) ids.push(id);
   if (delete_all) {
     const listed = await list({ _deps });
     if (!listed.success) {

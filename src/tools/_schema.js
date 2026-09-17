@@ -32,9 +32,9 @@ export function numberParam() {
 }
 
 /**
- * Non-negative integer parameter (such as a 0-based index) that also accepts
- * digit strings like "2". z.coerce.number() is not safe for that: it reads
- * "", " ", null and false as 0.
+ * Non-negative integer parameter (such as a 0-based index or an alert id)
+ * that also accepts digit strings like "2". z.coerce.number() is not safe for
+ * that: it reads "", " ", null and false as 0.
  */
 export function indexParam() {
   return z.preprocess(

@@ -82,6 +82,15 @@ describe('indexParam()', () => {
     assert.equal(index.parse('1'), 1);
     assert.equal(index.safeParse('').success, false);
   });
+
+  it('is what alert_delete uses for alert_id', () => {
+    const alertId = toolShapes().get('alert_delete').alert_id;
+    assert.equal(alertId.parse('123'), 123);
+    assert.equal(alertId.parse(undefined), undefined);
+    for (const input of ['', null, false, true, 'abc', 1.5, -1]) {
+      assert.equal(alertId.safeParse(input).success, false, `input ${JSON.stringify(input)}`);
+    }
+  });
 });
 
 // ── numberParam() ────────────────────────────────────────────────────────
@@ -162,6 +171,8 @@ describe('boolean tool parameters', () => {
       assert.equal(property('tab_switch', 'index').type, 'integer');
       assert.equal(property('tab_switch', 'index').minimum, 0);
       assert.equal(property('alert_create', 'price').type, 'number');
+      assert.equal(property('alert_delete', 'alert_id').type, 'integer');
+      assert.equal(property('alert_delete', 'alert_id').minimum, 0);
     } finally {
       await client.close();
     }

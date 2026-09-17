@@ -28,7 +28,8 @@ register('alert', {
         all: { type: 'boolean', description: 'Delete all alerts' },
         id: { type: 'string', description: 'Alert id to delete (from alert list)' },
       },
-      handler: (opts) => core.deleteAlerts({ delete_all: opts.all, alert_id: opts.id ? Number(opts.id) : undefined }),
+      // Pass id through unconverted: Number() turns a bare --id (true) into 1 and "abc" into NaN.
+      handler: (opts) => core.deleteAlerts({ delete_all: opts.all, alert_id: opts.id }),
     }],
   ]),
 });

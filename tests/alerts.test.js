@@ -231,6 +231,27 @@ describe('deleteAlerts()', () => {
     }
   });
 
+  it('accepts an alert_id given as digits, as the CLI passes it', async () => {
+    for (const alert_id of ['42', ' 42 ']) {
+      const evaluate = mockEval({ ok: true, status: 200 });
+      const result = await deleteAlerts({ alert_id, _deps: deps({ evaluate }) });
+      assert.deepEqual(result, { success: true, source: 'internal_api', deleted_count: 1, alert_ids: [42] });
+      assert.ok(evaluate.calls[0].includes('payload: { alert_ids: [42] }'));
+    }
+  });
+
+  // Number() read '', ' ' and false as 0 and a bare --id (true) as 1.
+  it('rejects an alert_id that is not a non-negative integer without listing or deleting anything', async () => {
+    for (const alert_id of [true, false, '', ' ', 'abc', '12.5', '-1', '0x1', '1e3', 1.5, -1, NaN, Infinity, 2 ** 53, {}, [], [5]]) {
+      for (const extra of [{}, { delete_all: true }]) {
+        const result = await deleteAlerts({ alert_id, ...extra, _deps: deps() });
+        assert.deepEqual(result,
+          { success: false, source: 'internal_api', error: `alert_id must be a non-negative integer, got: ${JSON.stringify(alert_id)}` },
+          `alert_id ${inspect(alert_id)} with ${inspect(extra)}`);
+      }
+    }
+  });
+
   it('treats delete_all: null as not set', async () => {
     const result = await deleteAlerts({ delete_all: null, _deps: deps() });
     assert.deepEqual(result, { success: false, source: 'internal_api', error: 'Provide delete_all: true or an alert_id to delete.' });
