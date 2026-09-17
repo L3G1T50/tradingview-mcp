@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { jsonResult } from './_format.js';
-import { booleanParam } from './_schema.js';
+import { booleanParam, numberParam } from './_schema.js';
 import * as core from '../core/alerts.js';
 
 export function registerAlertTools(server) {
   server.tool('alert_create', 'Create a price alert on the current chart symbol via TradingView\'s alert API', {
     condition: z.string().describe('Alert condition: "crossing", "greater_than", or "less_than"'),
-    price: z.coerce.number().describe('Price level for the alert'),
+    price: numberParam().describe('Price level for the alert'),
     message: z.string().optional().describe('Alert message'),
   }, async ({ condition, price, message }) => {
     try { return jsonResult(await core.create({ condition, price, message })); }

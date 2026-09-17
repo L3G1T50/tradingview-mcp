@@ -24,6 +24,9 @@ const CONDITION_TYPE_MAP = {
 
 export async function create({ condition, price, message, _deps }) {
   const { evaluate } = _resolve(_deps);
+  // requireFinite reads null, '' and false as 0; an alert at 0 is never what the caller meant.
+  const isNumberLike = typeof price === 'number' || (typeof price === 'string' && price.trim() !== '');
+  if (!isNumberLike) throw new Error(`price must be a finite number, got: ${price}`);
   const p = requireFinite(price, 'price');
   const condType = CONDITION_TYPE_MAP[String(condition || 'crossing').trim().toLowerCase()] || 'cross';
 

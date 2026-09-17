@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { booleanParam, indexParam } from '../src/tools/_schema.js';
+import { booleanParam, indexParam, numberParam } from '../src/tools/_schema.js';
 import { registerAlertTools } from '../src/tools/alerts.js';
 import { registerDataTools } from '../src/tools/data.js';
 import { registerHealthTools } from '../src/tools/health.js';
@@ -84,6 +84,32 @@ describe('indexParam()', () => {
   });
 });
 
+// ── numberParam() ────────────────────────────────────────────────────────
+
+describe('numberParam()', () => {
+  const schema = numberParam();
+
+  it('accepts finite numbers and numeric strings', () => {
+    for (const [input, expected] of [[0, 0], [4500.25, 4500.25], [-3, -3], ['4500.25', 4500.25], [' 12 ', 12], ['1e3', 1000]]) {
+      assert.equal(schema.parse(input), expected, `input ${JSON.stringify(input)}`);
+    }
+  });
+
+  // The regression: z.coerce.number() read the first four of these as 0.
+  it('rejects blanks, null, booleans, non-finite values and other strings', () => {
+    for (const input of ['', ' ', null, false, true, 'abc', '1; alert(1)', NaN, Infinity, 'Infinity', [], [5], {}]) {
+      assert.equal(schema.safeParse(input).success, false, `input ${String(input)}`);
+    }
+  });
+
+  it('is what alert_create uses for price', () => {
+    const price = toolShapes().get('alert_create').price;
+    assert.equal(price.parse('4500.5'), 4500.5);
+    assert.equal(price.safeParse('').success, false);
+    assert.equal(price.safeParse(null).success, false);
+  });
+});
+
 // ── Tools that take booleans ─────────────────────────────────────────────
 
 describe('boolean tool parameters', () => {
@@ -135,6 +161,7 @@ describe('boolean tool parameters', () => {
       }
       assert.equal(property('tab_switch', 'index').type, 'integer');
       assert.equal(property('tab_switch', 'index').minimum, 0);
+      assert.equal(property('alert_create', 'price').type, 'number');
     } finally {
       await client.close();
     }

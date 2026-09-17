@@ -15,8 +15,9 @@ register('alert', {
         condition: { type: 'string', short: 'c', description: 'Condition: crossing, greater_than, less_than' },
         message: { type: 'string', short: 'm', description: 'Alert message' },
       },
+      // Pass price through unconverted: Number() turns a bare --price (true) into 1 and "" into 0.
       handler: (opts) => core.create({
-        price: Number(opts.price),
+        price: opts.price,
         condition: opts.condition || 'crossing',
         message: opts.message,
       }),

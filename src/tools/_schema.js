@@ -20,6 +20,18 @@ export function booleanParam() {
 }
 
 /**
+ * Finite number parameter that also accepts numeric strings like "4500.25".
+ * z.coerce.number() is not safe for that: it reads "", " ", null and false
+ * as 0. z.number() already rejects NaN and Infinity.
+ */
+export function numberParam() {
+  return z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() !== '' ? Number(value) : value),
+    z.number(),
+  );
+}
+
+/**
  * Non-negative integer parameter (such as a 0-based index) that also accepts
  * digit strings like "2". z.coerce.number() is not safe for that: it reads
  * "", " ", null and false as 0.

@@ -79,8 +79,9 @@ describe('create()', () => {
     assert.ok(evaluate.calls[0].includes('var msg = "";'));
   });
 
-  for (const price of [NaN, Infinity, -Infinity, 'abc', undefined, '1; alert(1)']) {
-    it(`rejects price ${String(price)} before calling evaluate`, async () => {
+  // null, '', '  ', false and [] used to pass requireFinite as 0; true and [5] as 1 and 5.
+  for (const price of [NaN, Infinity, -Infinity, 'abc', undefined, '1; alert(1)', null, '', '  ', false, true, [], [5]]) {
+    it(`rejects price ${inspect(price)} before calling evaluate`, async () => {
       await assert.rejects(
         () => create({ condition: 'crossing', price, _deps: deps() }),
         { message: `price must be a finite number, got: ${price}` },
